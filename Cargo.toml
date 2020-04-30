@@ -1,0 +1,16 @@
+[package]
+name = "ttrackr"
+version = "0.1.0"
+authors = ["michaeldvr <michael.devara@gmail.com>"]
+edition = "2018"
+description = "ttrackr, a time tracker"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4.11"
+structopt = "0.3.14"
+dirs = "2.0.2"
+toml = "0.5.6"
+serde = "1"
+serde_derive = "1.0"
