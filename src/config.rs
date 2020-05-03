@@ -4,7 +4,6 @@ use dirs;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{read_to_string, File};
-use std::io::prelude::*;
 use std::path::PathBuf;
 use toml;
 
@@ -18,11 +17,11 @@ impl Config {
     fn new() -> Self {
         Config {
             autodone: false,
-            database: HashMap::<String, String>::new()
+            database: HashMap::<String, String>::new(),
         }
     }
 
-    fn save(&self, filepath: &Option<PathBuf>) -> Result<(), BoxError> {
+    fn save(&self, filepath: Option<&PathBuf>) -> Result<(), BoxError> {
         let cfgpath = get_config_path(filepath);
         let mut file = File::create(&cfgpath)?;
         self.save_to(&mut file)
@@ -34,7 +33,7 @@ impl Config {
         Ok(())
     }
 
-    fn load(filepath: &Option<PathBuf>) -> Result<Self, BoxError> {
+    fn load(filepath: Option<&PathBuf>) -> Result<Self, BoxError> {
         let cfgpath = get_config_path(filepath);
         let content = read_to_string(&cfgpath)?;
         let config: Config = toml::from_str(&content)?;
@@ -42,7 +41,7 @@ impl Config {
     }
 }
 
-pub fn get_config_path(filepath: &Option<PathBuf>) -> PathBuf {
+pub fn get_config_path(filepath: Option<&PathBuf>) -> PathBuf {
     match filepath {
         None => {
             let mut tmp_path: PathBuf = dirs::home_dir().unwrap();
@@ -53,7 +52,7 @@ pub fn get_config_path(filepath: &Option<PathBuf>) -> PathBuf {
     }
 }
 
-pub fn create_config(filepath: &Option<PathBuf>) -> Result<(bool, PathBuf), BoxError> {
+pub fn create_config(filepath: Option<&PathBuf>) -> Result<(bool, PathBuf), BoxError> {
     let cfgpath = get_config_path(filepath);
     println!("using cfgpath: {:?} [{}]", cfgpath, cfgpath.exists());
     if cfgpath.exists() {
@@ -64,7 +63,9 @@ pub fn create_config(filepath: &Option<PathBuf>) -> Result<(bool, PathBuf), BoxE
     dbpath.push(".ttrackr.db");
 
     let mut config = Config::new();
-    config.database.insert("path".to_owned(), dbpath.to_string_lossy().to_string());
+    config
+        .database
+        .insert("path".to_owned(), dbpath.to_string_lossy().to_string());
 
     // println!("{:?}", &config);
     // println!("created config file at {:?}", cfgpath);
@@ -83,10 +84,11 @@ mod test {
     #[test]
     fn load_config_from_file() -> Result<(), BoxError> {
         let mut conf = Config::new();
-        conf.database.insert("path".to_owned(), "/tmp/testfile".to_owned());
+        conf.database
+            .insert("path".to_owned(), "/tmp/testfile".to_owned());
         let mut file = NamedTempFile::new()?;
         conf.save_to(&mut file)?;
-        let check = Config::load(&Some(file.path().to_path_buf()))?;
+        let check = Config::load(Some(&file.path().to_path_buf()))?;
         assert_eq!(conf.autodone, check.autodone);
         assert_eq!(conf.database, conf.database);
         Ok(())

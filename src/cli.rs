@@ -5,6 +5,8 @@ use chrono::NaiveDate;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+use crate::db::ops;
+
 #[derive(StructOpt, Debug)]
 // #[structopt(setting = AppSettings::InferSubcommands)]
 struct Cli {
@@ -39,7 +41,7 @@ struct CreateOpts {
     #[structopt(help = "New task name")]
     name: String,
     #[structopt(short = "t", help = "Target duration in minutes")]
-    duration: Option<u32>,
+    duration: Option<i32>,
     #[structopt(short = "d", help = "Due date")]
     duedate: Option<NaiveDate>,
     #[structopt(short = "n", long = "note", help = "Description")]
@@ -51,7 +53,7 @@ struct EditOpts {
     #[structopt(help = "Task name")]
     name: String,
     #[structopt(short = "t", help = "Target duration in minutes")]
-    duration: Option<u32>,
+    duration: Option<i32>,
     #[structopt(short = "d", help = "Due date")]
     duedate: Option<NaiveDate>,
     #[structopt(short = "n", long = "note", help = "Description")]
@@ -95,7 +97,12 @@ pub fn parse_cli() -> Result<(), BoxError> {
     println!("Hello, world!");
     println!("{:?}", &args);
 
-    let cfgpath = match config::create_config(&args.config) {
+    let conf: Option<&PathBuf> = match &args.config {
+        Some(val) => Some(&val),
+        None => None,
+    };
+
+    let cfgpath = match config::create_config(conf) {
         Ok((created, path)) => {
             if created {
                 println!("Created config file at {:?}", path);
@@ -107,12 +114,12 @@ pub fn parse_cli() -> Result<(), BoxError> {
         }
     };
 
-    let _config = config::create_config(&Some(cfgpath))?;
+    let _config = config::create_config(Some(&cfgpath))?;
 
     match &args.cmd {
-        Sub::Create(cfg) => {
-            println!("{:?}", &cfg);
-            println!("{}", &cfg.name);
+        Sub::Create(args) => {
+            let res = ops::create_task(&args.name, None, args.duration);
+            println!("status: {}", res);
         }
         _ => (),
     };
