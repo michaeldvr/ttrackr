@@ -15,10 +15,21 @@ pub struct Config {
 }
 
 impl Config {
+    fn new() -> Self {
+        Config {
+            autodone: false,
+            database: HashMap::<String, String>::new()
+        }
+    }
+
     fn save(&self, filepath: &Option<PathBuf>) -> Result<(), BoxError> {
         let cfgpath = get_config_path(filepath);
-        let resultstr = toml::to_string(self)?;
         let mut file = File::create(&cfgpath)?;
+        self.save_to(&mut file)
+    }
+
+    fn save_to(&self, file: &mut impl std::io::Write) -> Result<(), BoxError> {
+        let resultstr = toml::to_string(self)?;
         file.write_all(resultstr.as_bytes())?;
         Ok(())
     }
@@ -52,18 +63,32 @@ pub fn create_config(filepath: &Option<PathBuf>) -> Result<(bool, PathBuf), BoxE
     let mut dbpath = dirs::home_dir().unwrap();
     dbpath.push(".ttrackr.db");
 
-    let mut configdb = HashMap::<String, String>::new();
-    configdb.insert(String::from("path"), dbpath.to_string_lossy().to_string());
+    let mut config = Config::new();
+    config.database.insert("path".to_owned(), dbpath.to_string_lossy().to_string());
 
-    let config = Config {
-        autodone: false,
-        database: configdb,
-    };
-    println!("{:?}", &config);
+    // println!("{:?}", &config);
     // println!("created config file at {:?}", cfgpath);
 
     match config.save(filepath) {
         Ok(()) => Ok((true, cfgpath)),
         Err(err) => Err(err),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn load_config_from_file() -> Result<(), BoxError> {
+        let mut conf = Config::new();
+        conf.database.insert("path".to_owned(), "/tmp/testfile".to_owned());
+        let mut file = NamedTempFile::new()?;
+        conf.save_to(&mut file)?;
+        let check = Config::load(&Some(file.path().to_path_buf()))?;
+        assert_eq!(conf.autodone, check.autodone);
+        assert_eq!(conf.database, conf.database);
+        Ok(())
     }
 }
