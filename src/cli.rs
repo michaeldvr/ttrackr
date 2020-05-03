@@ -1,43 +1,66 @@
 // cli args parser
+use crate::config;
+use crate::utils::BoxError;
 use chrono::NaiveDate;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 // #[structopt(setting = AppSettings::InferSubcommands)]
 struct Cli {
+    #[structopt(parse(from_os_str), help = "config file", long)]
+    config: Option<PathBuf>,
     #[structopt(subcommand)]
     cmd: Sub,
 }
 
 #[derive(StructOpt, Debug)]
 enum Sub {
-    #[structopt(name = "create")]
+    #[structopt(name = "create", visible_alias = "new")]
     Create(CreateOpts),
-    #[structopt(name = "remove")]
-    Remove(RemoveOpts),
+    #[structopt(name = "edit")]
+    Edit(EditOpts),
+    #[structopt(name = "delete", visible_alias = "del")]
+    Delete(DeleteOpts),
     #[structopt(name = "start")]
     Start(StartOpts),
     #[structopt(name = "stop")]
     Stop(StopOpts),
+    #[structopt(name = "stopall")]
+    StopAll(StopAllOpts),
+    #[structopt(name = "status", visible_alias = "stat")]
+    Status(StatusOpts),
+    #[structopt(name = "list")]
+    List(ListOpts),
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(visible_alias = "new")]
 struct CreateOpts {
-    #[structopt(help = "New project name")]
+    #[structopt(help = "New task name")]
     name: String,
     #[structopt(short = "t", help = "Target duration in minutes")]
     duration: Option<u32>,
     #[structopt(short = "d", help = "Due date")]
     duedate: Option<NaiveDate>,
-    #[structopt(short = "f", long = "flat", help = "Flat project type")]
-    task: Option<Option<String>>,
+    #[structopt(short = "n", long = "note", help = "Description")]
+    task: Option<String>,
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(visible_alias = "del")]
-struct RemoveOpts {
-    #[structopt(help = "Project name")]
+struct EditOpts {
+    #[structopt(help = "Task name")]
+    name: String,
+    #[structopt(short = "t", help = "Target duration in minutes")]
+    duration: Option<u32>,
+    #[structopt(short = "d", help = "Due date")]
+    duedate: Option<NaiveDate>,
+    #[structopt(short = "n", long = "note", help = "Description")]
+    task: Option<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct DeleteOpts {
+    #[structopt(help = "Task name")]
     name: String,
     #[structopt(long, help = "Skip confirmation")]
     noconfirm: bool,
@@ -55,10 +78,37 @@ struct StopOpts {
     name: Vec<String>,
 }
 
-pub fn parse_cli() {
+#[derive(StructOpt, Debug)]
+struct StopAllOpts {}
+
+#[derive(StructOpt, Debug)]
+struct StatusOpts {
+    #[structopt(short = "f", long = "filter", name = "task name")]
+    filter: Option<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct ListOpts {}
+
+pub fn parse_cli() -> Result<(), BoxError> {
     let args = Cli::from_args();
     println!("Hello, world!");
     println!("{:?}", &args);
+
+    let cfgpath = match config::create_config(&args.config) {
+        Ok((created, path)) => {
+            if created {
+                println!("Created config file at {:?}", path);
+            }
+            path
+        }
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let _config = config::create_config(&Some(cfgpath))?;
+
     match &args.cmd {
         Sub::Create(cfg) => {
             println!("{:?}", &cfg);
@@ -66,4 +116,11 @@ pub fn parse_cli() {
         }
         _ => (),
     };
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn create_task(_tasks: &[&str], _config: &config::Config) {
+    // TODO create new task
 }
