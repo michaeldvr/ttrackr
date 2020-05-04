@@ -22,6 +22,8 @@ diesel = { version = "1.4", features = ["sqlite"] }
 dotenv = "0.15"
 log = "0.4"
 env_logger = "0.7"
+comfy-table = "0.1"
+Inflector = "0.11"
 
 [dev-dependencies]
 assert_cmd = "1.0"

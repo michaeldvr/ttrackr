@@ -1,6 +1,6 @@
 use super::schema::*;
 
-#[derive(Queryable)]
+#[derive(Debug, Queryable)]
 pub struct Task {
     pub id: i32,
     pub created: String,
@@ -11,7 +11,7 @@ pub struct Task {
     pub done: bool,
 }
 
-#[derive(Insertable, Default)]
+#[derive(Debug, Insertable, Default)]
 #[table_name = "task"]
 pub struct NewTask<'a> {
     pub taskname: &'a str,

@@ -91,7 +91,31 @@ struct StatusOpts {
 }
 
 #[derive(StructOpt, Debug)]
-struct ListOpts {}
+struct ListOpts {
+    #[structopt(short = "s", long = "status", possible_values = &["all", "done", "incomplete"], default_value = "all")]
+    status: String,
+    #[structopt(short = "f", long = "filter", name = "task name")]
+    filter: Option<String>,
+}
+
+enum TaskStatus {
+    All,
+    Done,
+    Incomplete,
+}
+
+impl std::str::FromStr for TaskStatus {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_ref() {
+            "all" => Ok(TaskStatus::All),
+            "done" => Ok(TaskStatus::Done),
+            "incomplete" => Ok(TaskStatus::Incomplete),
+            _ => Err("no match"),
+        }
+    }
+}
 
 pub fn parse_cli() -> Result<(), BoxError> {
     let args = Cli::from_args();
@@ -123,10 +147,36 @@ pub fn parse_cli() -> Result<(), BoxError> {
                 Some(val) => Some(val * 60), // mins to secs
                 None => None,
             };
-            ops::create_task(&config, &args.name, None, duration)?
+            ops::create_task(&config, &args.name, None, duration)
         }
-        _ => (),
-    };
+        Sub::List(args) => list_tasks(&config, args),
+        _ => Ok(()),
+    }
+}
 
+fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> {
+    use crate::utils::{fmt_duration, unwrap_string};
+    use comfy_table::Table;
+
+    let data = ops::list_tasks(&config, args.filter.as_deref(), Some(&args.status))?;
+    // debug!("result: {:#?}", data);
+    let mut table = Table::new();
+    table.set_header(vec![
+        "#", "Task", "Notes", "Spent", "Allocated", "Due Date", "Done", "Created",
+    ]);
+    for (i, row) in data.iter().enumerate() {
+        table.add_row(vec![
+            (i + 1).to_string(),
+            // (row.id).to_string(),
+            row.taskname.to_string(),
+            unwrap_string(row.notes.as_ref(), "-"),
+            fmt_duration(0, false, "not started"), // TODO get from worklog data
+            fmt_duration(row.duration, true, "-"),
+            unwrap_string(row.duedate.as_ref(), "-"),
+            row.done.to_string(),
+            row.created.to_string(),
+        ]);
+    }
+    println!("{}", table);
     Ok(())
 }
