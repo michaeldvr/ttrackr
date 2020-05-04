@@ -1,6 +1,7 @@
 // config file parser
 use crate::utils::BoxError;
 use dirs;
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{read_to_string, File};
@@ -14,26 +15,26 @@ pub struct Config {
 }
 
 impl Config {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Config {
             autodone: false,
             database: HashMap::<String, String>::new(),
         }
     }
 
-    fn save(&self, filepath: Option<&PathBuf>) -> Result<(), BoxError> {
+    pub fn save(&self, filepath: Option<&PathBuf>) -> Result<(), BoxError> {
         let cfgpath = get_config_path(filepath);
         let mut file = File::create(&cfgpath)?;
         self.save_to(&mut file)
     }
 
-    fn save_to(&self, file: &mut impl std::io::Write) -> Result<(), BoxError> {
+    pub fn save_to(&self, file: &mut impl std::io::Write) -> Result<(), BoxError> {
         let resultstr = toml::to_string(self)?;
         file.write_all(resultstr.as_bytes())?;
         Ok(())
     }
 
-    fn load(filepath: Option<&PathBuf>) -> Result<Self, BoxError> {
+    pub fn load(filepath: Option<&PathBuf>) -> Result<Self, BoxError> {
         let cfgpath = get_config_path(filepath);
         let content = read_to_string(&cfgpath)?;
         let config: Config = toml::from_str(&content)?;
@@ -54,7 +55,7 @@ pub fn get_config_path(filepath: Option<&PathBuf>) -> PathBuf {
 
 pub fn create_config(filepath: Option<&PathBuf>) -> Result<(bool, PathBuf), BoxError> {
     let cfgpath = get_config_path(filepath);
-    println!("using cfgpath: {:?} [{}]", cfgpath, cfgpath.exists());
+    debug!("using cfgpath: {:?} [{}]", cfgpath, cfgpath.exists());
     if cfgpath.exists() {
         return Ok((false, cfgpath));
     }
@@ -66,9 +67,6 @@ pub fn create_config(filepath: Option<&PathBuf>) -> Result<(bool, PathBuf), BoxE
     config
         .database
         .insert("path".to_owned(), dbpath.to_string_lossy().to_string());
-
-    // println!("{:?}", &config);
-    // println!("created config file at {:?}", cfgpath);
 
     match config.save(filepath) {
         Ok(()) => Ok((true, cfgpath)),

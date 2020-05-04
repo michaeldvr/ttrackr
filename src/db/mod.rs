@@ -2,7 +2,9 @@ pub mod models;
 pub mod ops;
 pub mod schema;
 
-// use crate::utils::BoxError;
+use crate::config::Config;
+use crate::utils::BoxError;
+
 use diesel::prelude::*;
 
 pub fn get_connection(dbpath: &str) -> SqliteConnection {

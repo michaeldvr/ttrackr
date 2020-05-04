@@ -2,6 +2,7 @@
 use crate::config;
 use crate::utils::BoxError;
 use chrono::NaiveDate;
+use log::debug;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -94,8 +95,8 @@ struct ListOpts {}
 
 pub fn parse_cli() -> Result<(), BoxError> {
     let args = Cli::from_args();
-    println!("Hello, world!");
-    println!("{:?}", &args);
+    debug!("Hello, world!");
+    debug!("{:?}", &args);
 
     let conf: Option<&PathBuf> = match &args.config {
         Some(val) => Some(&val),
@@ -105,7 +106,7 @@ pub fn parse_cli() -> Result<(), BoxError> {
     let cfgpath = match config::create_config(conf) {
         Ok((created, path)) => {
             if created {
-                println!("Created config file at {:?}", path);
+                debug!("Created config file at {:?}", path);
             }
             path
         }
@@ -114,20 +115,18 @@ pub fn parse_cli() -> Result<(), BoxError> {
         }
     };
 
-    let _config = config::create_config(Some(&cfgpath))?;
+    let config = config::Config::load(Some(&cfgpath))?;
 
     match &args.cmd {
         Sub::Create(args) => {
-            let res = ops::create_task(&args.name, None, args.duration);
-            println!("status: {}", res);
+            let duration = match args.duration {
+                Some(val) => Some(val * 60), // mins to secs
+                None => None,
+            };
+            ops::create_task(&config, &args.name, None, duration)?
         }
         _ => (),
     };
 
     Ok(())
-}
-
-#[allow(dead_code)]
-fn create_task(_tasks: &[&str], _config: &config::Config) {
-    // TODO create new task
 }

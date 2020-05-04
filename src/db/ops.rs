@@ -1,24 +1,29 @@
-use super::{get_connection, models, schema};
+use super::{get_connection, models, schema, BoxError, Config};
 use diesel;
 use diesel::prelude::*;
 // use std::io::{stdin, Read};
 
-pub fn create_task(taskname: &str, notes: Option<&str>, duration: Option<i32>) -> usize {
-    let conn = get_connection("/home/michael/Documents/Projects/ttrackr/ttrackr.db");
-    /*let mut taskname = String::new();
-    println!("Task name:");
-    stdin().read_line(&mut taskname).unwrap();
-    let taskname = &taskname[..(taskname.len()-1)];
-    let notes = None;
-    let duration = 0;*/
+pub fn create_task(
+    config: &Config,
+    taskname: &str,
+    notes: Option<&str>,
+    duration: Option<i32>,
+) -> Result<(), BoxError> {
+    let conn = get_connection(config.database.get("path").unwrap());
     let new_task = models::NewTask {
         taskname: taskname,
         notes: notes,
         duration: duration,
     };
 
-    diesel::insert_into(schema::task::table)
+    let result = diesel::insert_into(schema::task::table)
         .values(&new_task)
-        .execute(&conn)
-        .expect("Error saving new task")
+        .execute(&conn);
+    match result {
+        Ok(val) => {
+            println!("result: {}", val);
+            Ok(())
+        }
+        Err(err) => Err(err.into()),
+    }
 }
