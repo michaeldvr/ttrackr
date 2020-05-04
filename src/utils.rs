@@ -41,7 +41,7 @@ pub fn fmt_duration(duration: i32, short: bool, zero_text: &str) -> String {
 pub fn unwrap_string(val: Option<&String>, default: &str) -> String {
     match val {
         Some(txt) => String::from(txt),
-        None => String::from(default)
+        None => String::from(default),
     }
 }
 
@@ -77,8 +77,20 @@ fn formatted_seconds() {
     assert_eq!(fmt_duration(130, true, "zero"), "2 minutes");
     assert_eq!(fmt_duration(130, true, "zero"), "2 minutes");
     assert_eq!(fmt_duration(8228, true, "zero"), "2 hours 17 minutes");
-    assert_eq!(fmt_duration(8228, false, "zero"), "2 hours 17 minutes 8 seconds");
-    assert_eq!(fmt_duration(104520, true, "zero"), "1 day 5 hours 2 minutes");
-    assert_eq!(fmt_duration(104520, false, "zero"), "1 day 5 hours 2 minutes");
-    assert_eq!(fmt_duration(1473120, false, "zero"), "17 days 1 hour 12 minutes");
+    assert_eq!(
+        fmt_duration(8228, false, "zero"),
+        "2 hours 17 minutes 8 seconds"
+    );
+    assert_eq!(
+        fmt_duration(104520, true, "zero"),
+        "1 day 5 hours 2 minutes"
+    );
+    assert_eq!(
+        fmt_duration(104520, false, "zero"),
+        "1 day 5 hours 2 minutes"
+    );
+    assert_eq!(
+        fmt_duration(1473120, false, "zero"),
+        "17 days 1 hour 12 minutes"
+    );
 }

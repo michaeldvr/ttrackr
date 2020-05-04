@@ -7,13 +7,15 @@ pub fn create_task(
     config: &Config,
     taskname: &str,
     notes: Option<&str>,
-    duration: Option<i32>,
+    allocated: Option<i32>,
+    duedate: Option<&str>,
 ) -> Result<(), BoxError> {
     let conn = get_connection(config);
     let new_task = models::NewTask {
         taskname: taskname,
         notes: notes,
-        duration: duration,
+        allocated: allocated,
+        duedate: duedate,
     };
 
     let result = diesel::insert_into(schema::task::table)

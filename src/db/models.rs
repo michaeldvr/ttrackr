@@ -6,7 +6,7 @@ pub struct Task {
     pub created: String,
     pub taskname: String,
     pub notes: Option<String>,
-    pub duration: i32,
+    pub allocated: i32,
     pub duedate: Option<String>,
     pub done: bool,
 }
@@ -16,5 +16,6 @@ pub struct Task {
 pub struct NewTask<'a> {
     pub taskname: &'a str,
     pub notes: Option<&'a str>,
-    pub duration: Option<i32>,
+    pub allocated: Option<i32>,
+    pub duedate: Option<&'a str>,
 }

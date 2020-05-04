@@ -4,7 +4,7 @@ table! {
         created -> Timestamp,
         taskname -> Text,
         notes -> Nullable<Text>,
-        duration -> Integer,
+        allocated -> Integer,
         duedate -> Nullable<Timestamp>,
         done -> Bool,
     }

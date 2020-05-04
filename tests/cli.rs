@@ -20,8 +20,7 @@ fn create_new_config_file() -> Result<(), BoxError> {
     let mut cmd = Command::cargo_bin("ttrackr")?;
     cmd.arg("--config")
         .arg(&configfile)
-        .arg("create")
-        .arg("task1")
+        .arg("test")
         .assert()
         .success()
         .stdout(predicate::str::contains("Created config file"));

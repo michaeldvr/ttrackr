@@ -4,6 +4,7 @@ use crate::utils::BoxError;
 use chrono::NaiveDate;
 use log::debug;
 use std::path::PathBuf;
+use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
 use crate::db::ops;
@@ -35,30 +36,35 @@ enum Sub {
     Status(StatusOpts),
     #[structopt(name = "list")]
     List(ListOpts),
+    #[structopt(name = "test", setting = AppSettings::Hidden)]
+    Test(TestOpts),
 }
+
+#[derive(StructOpt, Debug)]
+struct TestOpts {}
 
 #[derive(StructOpt, Debug)]
 struct CreateOpts {
     #[structopt(help = "New task name")]
     name: String,
-    #[structopt(short = "t", help = "Target duration in minutes")]
-    duration: Option<i32>,
+    #[structopt(short = "t", help = "Task allocation time in minutes")]
+    allocated: Option<i32>,
     #[structopt(short = "d", help = "Due date")]
     duedate: Option<NaiveDate>,
     #[structopt(short = "n", long = "note", help = "Description")]
-    task: Option<String>,
+    note: Option<String>,
 }
 
 #[derive(StructOpt, Debug)]
 struct EditOpts {
     #[structopt(help = "Task name")]
     name: String,
-    #[structopt(short = "t", help = "Target duration in minutes")]
-    duration: Option<i32>,
+    #[structopt(short = "t", help = "Task allocation time in minutes")]
+    allocated: Option<i32>,
     #[structopt(short = "d", help = "Due date")]
     duedate: Option<NaiveDate>,
     #[structopt(short = "n", long = "note", help = "Description")]
-    task: Option<String>,
+    note: Option<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -130,7 +136,7 @@ pub fn parse_cli() -> Result<(), BoxError> {
     let cfgpath = match config::create_config(conf) {
         Ok((created, path)) => {
             if created {
-                debug!("Created config file at {:?}", path);
+                println!("Created config file at {:?}", path);
             }
             path
         }
@@ -143,11 +149,11 @@ pub fn parse_cli() -> Result<(), BoxError> {
 
     match &args.cmd {
         Sub::Create(args) => {
-            let duration = match args.duration {
+            let allocated = match args.allocated {
                 Some(val) => Some(val * 60), // mins to secs
                 None => None,
             };
-            ops::create_task(&config, &args.name, None, duration)
+            ops::create_task(&config, &args.name, args.note.as_deref(), allocated, open_naivedate(args.duedate).as_deref())
         }
         Sub::List(args) => list_tasks(&config, args),
         _ => Ok(()),
@@ -162,7 +168,14 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
     // debug!("result: {:#?}", data);
     let mut table = Table::new();
     table.set_header(vec![
-        "#", "Task", "Notes", "Spent", "Allocated", "Due Date", "Done", "Created",
+        "#",
+        "Task",
+        "Notes",
+        "Spent",
+        "Allocated",
+        "Due Date",
+        "Done",
+        "Created",
     ]);
     for (i, row) in data.iter().enumerate() {
         table.add_row(vec![
@@ -171,7 +184,7 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
             row.taskname.to_string(),
             unwrap_string(row.notes.as_ref(), "-"),
             fmt_duration(0, false, "not started"), // TODO get from worklog data
-            fmt_duration(row.duration, true, "-"),
+            fmt_duration(row.allocated, true, "-"),
             unwrap_string(row.duedate.as_ref(), "-"),
             row.done.to_string(),
             row.created.to_string(),
@@ -179,4 +192,11 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
     }
     println!("{}", table);
     Ok(())
+}
+
+fn open_naivedate(data: Option<chrono::NaiveDate>) -> Option<String> {
+    match data {
+        Some(d) => Some(d.to_string()),
+        None => None
+    }
 }
