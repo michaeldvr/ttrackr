@@ -13,6 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install sqlite
+      run: |
+        sudo apt-get update && sudo apt-get install -y libsqlite3-dev sqlite3
     - name: Build
       run: cargo build --verbose
     - name: Run tests
