@@ -67,6 +67,10 @@ struct EditOpts {
     duedate: Option<NaiveDate>,
     #[structopt(short = "n", long = "note", help = "Description")]
     note: Option<String>,
+    #[structopt(short, long, help = "Set as finished", conflicts_with = "incomplete")]
+    finish: bool,
+    #[structopt(short, long, help = "Set as incomplete")]
+    incomplete: bool,
 }
 
 #[derive(StructOpt, Debug)]
@@ -175,6 +179,7 @@ pub fn parse_cli() -> Result<(), BoxError> {
             )
         }
         Sub::List(args) => list_tasks(&config, args),
+        Sub::Edit(args) => update_task(&config, args),
         _ => Ok(()),
     }
 }
@@ -211,6 +216,24 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
     }
     println!("{}", table);
     Ok(())
+}
+
+fn update_task(config: &config::Config, args: &EditOpts) -> Result<(), BoxError> {
+    let allocated = args.allocated.unwrap_or(0) * 60; //
+    let mut done: Option<bool> = None;
+    if args.finish {
+        done = Some(true);
+    } else if args.incomplete {
+        done = Some(false);
+    }
+    ops::update_tasks(
+        config,
+        &args.name,
+        args.note.as_deref(),
+        Some(allocated),
+        open_naivedate(args.duedate).as_deref(),
+        done,
+    )
 }
 
 fn open_naivedate(data: Option<chrono::NaiveDate>) -> Option<String> {

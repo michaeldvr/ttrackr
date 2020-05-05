@@ -1,6 +1,4 @@
-use assert_cmd::prelude::*;
 use std::path::PathBuf;
-use std::process::Command;
 use tempfile::TempDir;
 
 pub type BoxError = Box<dyn std::error::Error>;

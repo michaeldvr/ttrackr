@@ -60,3 +60,39 @@ pub fn list_tasks(
         Err(err) => Err(err.into()),
     }
 }
+
+pub fn update_tasks(
+    config: &Config,
+    name: &str,
+    notes: Option<&str>,
+    allocated: Option<i32>,
+    duedate: Option<&str>,
+    done: Option<bool>,
+) -> Result<(), BoxError> {
+    let taskid = get_task_id(config, name)?;
+    let updatetask = models::UpdateTask {
+        id: taskid,
+        notes: notes.map(String::from),
+        allocated: allocated.unwrap_or(0),
+        duedate: duedate.map(String::from),
+        done,
+    };
+    let conn = get_connection(config)?;
+    match diesel::update(&updatetask).set(&updatetask).execute(&conn) {
+        Ok(_val) => Ok(()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn get_task_id(config: &Config, name: &str) -> Result<i32, BoxError> {
+    use schema::task::dsl::*;
+    let conn = get_connection(config)?;
+    let taskid = task
+        .select(id)
+        .filter(taskname.eq(name))
+        .first::<i32>(&conn);
+    match taskid {
+        Ok(val) => Ok(val),
+        Err(err) => Err(err.into()),
+    }
+}
