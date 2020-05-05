@@ -1,14 +1,12 @@
 // config file parser
 use crate::utils::BoxError;
-use dirs;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{read_to_string, File};
 use std::path::PathBuf;
-use toml;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Config {
     pub autodone: bool,
     pub database: HashMap<String, String>,
@@ -53,15 +51,23 @@ pub fn get_config_path(filepath: Option<&PathBuf>) -> PathBuf {
     }
 }
 
-pub fn create_config(filepath: Option<&PathBuf>) -> Result<(bool, PathBuf), BoxError> {
+pub fn create_config(
+    filepath: Option<&PathBuf>,
+    dbfile: Option<&PathBuf>,
+) -> Result<(bool, PathBuf), BoxError> {
     let cfgpath = get_config_path(filepath);
-    debug!("using cfgpath: {:?} [{}]", cfgpath, cfgpath.exists());
+    debug!("using cfgpath: {:?} [exists:{}]", cfgpath, cfgpath.exists());
     if cfgpath.exists() {
         return Ok((false, cfgpath));
     }
 
-    let mut dbpath = dirs::home_dir().unwrap();
-    dbpath.push(".ttrackr.db");
+    let mut dbpath: PathBuf;
+    if let Some(path) = dbfile {
+        dbpath = path.to_path_buf();
+    } else {
+        dbpath = dirs::home_dir().unwrap();
+        dbpath.push(".ttrackr.db");
+    }
 
     let mut config = Config::new();
     config

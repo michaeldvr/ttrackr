@@ -14,6 +14,8 @@ use crate::db::ops;
 struct Cli {
     #[structopt(parse(from_os_str), help = "config file", long)]
     config: Option<PathBuf>,
+    #[structopt(parse(from_os_str), help = "database file", long)]
+    dbfile: Option<PathBuf>,
     #[structopt(subcommand)]
     cmd: Sub,
 }
@@ -133,7 +135,12 @@ pub fn parse_cli() -> Result<(), BoxError> {
         None => None,
     };
 
-    let cfgpath = match config::create_config(conf) {
+    let dbfile: Option<&PathBuf> = match &args.dbfile {
+        Some(val) => Some(&val),
+        None => None,
+    };
+
+    let cfgpath = match config::create_config(conf, dbfile) {
         Ok((created, path)) => {
             if created {
                 println!("Created config file at {:?}", path);
@@ -145,7 +152,13 @@ pub fn parse_cli() -> Result<(), BoxError> {
         }
     };
 
-    let config = config::Config::load(Some(&cfgpath))?;
+    let mut config = config::Config::load(Some(&cfgpath))?;
+
+    if let Some(path) = &args.dbfile {
+        config
+            .database
+            .insert("path".to_owned(), path.to_string_lossy().to_string());
+    }
 
     match &args.cmd {
         Sub::Create(args) => {
@@ -153,7 +166,13 @@ pub fn parse_cli() -> Result<(), BoxError> {
                 Some(val) => Some(val * 60), // mins to secs
                 None => None,
             };
-            ops::create_task(&config, &args.name, args.note.as_deref(), allocated, open_naivedate(args.duedate).as_deref())
+            ops::create_task(
+                &config,
+                &args.name,
+                args.note.as_deref(),
+                allocated,
+                open_naivedate(args.duedate).as_deref(),
+            )
         }
         Sub::List(args) => list_tasks(&config, args),
         _ => Ok(()),
@@ -197,6 +216,6 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
 fn open_naivedate(data: Option<chrono::NaiveDate>) -> Option<String> {
     match data {
         Some(d) => Some(d.to_string()),
-        None => None
+        None => None,
     }
 }

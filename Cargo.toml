@@ -18,7 +18,9 @@ dirs = "2.0.2"
 toml = "0.5.6"
 serde = "1"
 serde_derive = "1.0"
+libsqlite3-sys = { version = ">=0.8.0, <0.13.0", optional = true, features = ["bundled"] }
 diesel = { version = "1.4", features = ["sqlite"] }
+diesel_migrations = "1.4"
 dotenv = "0.15"
 log = "0.4"
 env_logger = "0.7"

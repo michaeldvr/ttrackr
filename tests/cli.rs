@@ -5,10 +5,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use tempfile::TempDir;
 
-type BoxError = Box<dyn std::error::Error>;
+mod utils;
 
 #[test]
-fn create_new_config_file() -> Result<(), BoxError> {
+fn create_new_config_file() -> Result<(), utils::BoxError> {
     let tempdir = TempDir::new()?;
     let mut configfile = PathBuf::new();
     configfile.push(tempdir.path());
@@ -31,21 +31,29 @@ fn create_new_config_file() -> Result<(), BoxError> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
 #[test]
-fn shouldnt_create_config_file_on_root() -> Result<(), BoxError> {
-    // TODO remove this :D
-    let mut rootfile = PathBuf::new();
-    rootfile.push("/root");
-    rootfile.push(".ttrackrrc.test");
+fn create_tasks() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
 
     let mut cmd = Command::cargo_bin("ttrackr")?;
     cmd.arg("--config")
-        .arg(&rootfile)
+        .arg(&configpath)
+        .arg("--dbfile")
+        .arg(&dbpath)
         .arg("create")
-        .arg("task1")
+        .arg("test-task")
         .assert()
-        .failure();
+        .success();
+
+    cmd = Command::cargo_bin("ttrackr")?;
+    cmd.arg("--config")
+        .arg(&configpath)
+        .arg("--dbfile")
+        .arg(&dbpath)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test-task"));
 
     Ok(())
 }

@@ -1,5 +1,4 @@
 use super::{get_connection, models, schema, BoxError, Config};
-use diesel;
 use diesel::prelude::*;
 // use std::io::{stdin, Read};
 
@@ -10,12 +9,12 @@ pub fn create_task(
     allocated: Option<i32>,
     duedate: Option<&str>,
 ) -> Result<(), BoxError> {
-    let conn = get_connection(config);
+    let conn = get_connection(config)?;
     let new_task = models::NewTask {
-        taskname: taskname,
-        notes: notes,
-        allocated: allocated,
-        duedate: duedate,
+        taskname,
+        notes,
+        allocated,
+        duedate,
     };
 
     let result = diesel::insert_into(schema::task::table)
@@ -36,7 +35,7 @@ pub fn list_tasks(
     status: Option<&str>,
 ) -> Result<Vec<models::Task>, BoxError> {
     use schema::task::dsl::*;
-    let conn = get_connection(config);
+    let conn = get_connection(config)?;
     // let query = task.load::<models::Task>(&conn);
     let mut query = task.into_boxed();
     if let Some(taskfilter) = taskfilter {
