@@ -11,8 +11,6 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - name: Install sqlite3 dependency
-        run: sudo apt install libsqlite3-dev -y
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install rust
@@ -39,13 +37,12 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
+          args: --all-features
 
   test:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Install sqlite3 dependency
-        run: sudo apt install libsqlite3-dev -y
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
@@ -70,3 +67,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all-features

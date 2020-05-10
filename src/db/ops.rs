@@ -129,7 +129,7 @@ pub fn start_worklog(config: &Config, name: &str) -> Result<(), BoxError> {
 }
 
 /// Stop multiple tasks
-pub fn stop_worklogs(config: &Config, names: &Vec<String>) -> Result<(), BoxError> {
+pub fn stop_worklogs(config: &Config, names: &[String]) -> Result<(), BoxError> {
     let conn = get_connection(config)?;
     for name in names.iter() {
         let current_task = helper::get_task(&conn, &name)?;
@@ -164,8 +164,7 @@ pub fn get_total_spent(config: &Config, name: &str) -> Result<i32, BoxError> {
         .select(duration)
         .load::<i32>(&conn)?;
 
-    let mut current_spent = 0; // running spent
-    if helper::check_task_is_running(&conn, &taskobj)? {
+    let current_spent = if helper::check_task_is_running(&conn, &taskobj)? {
         let running = models::Worklog::belonging_to(&taskobj)
             .filter(stopped.is_null())
             .filter(ignored.eq(false))
@@ -173,12 +172,14 @@ pub fn get_total_spent(config: &Config, name: &str) -> Result<i32, BoxError> {
             .first::<String>(&conn)?;
         let stop_timestamp = Utc::now().naive_local();
         let start_timestamp = NaiveDateTime::parse_from_str(&running, "%Y-%m-%d %H:%M:%S")?;
-        current_spent = i32::try_from(
+        i32::try_from(
             stop_timestamp
                 .signed_duration_since(start_timestamp)
                 .num_seconds(),
-        )?;
-    }
+        )?
+    } else {
+        0
+    };
     // manual addition
     Ok(spents.iter().sum::<i32>() + current_spent)
 }
