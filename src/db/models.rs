@@ -1,6 +1,7 @@
 use super::schema::*;
 
-#[derive(Debug, Queryable)]
+#[derive(Identifiable, Debug, Queryable)]
+#[table_name = "task"]
 pub struct Task {
     pub id: i32,
     pub created: String,
@@ -28,4 +29,22 @@ pub struct NewTask<'a> {
     pub notes: Option<&'a str>,
     pub allocated: Option<i32>,
     pub duedate: Option<&'a str>,
+}
+
+#[derive(Identifiable, Associations, Debug, Queryable)]
+#[belongs_to(Task)]
+#[table_name = "worklog"]
+pub struct Worklog {
+    pub id: i32,
+    pub task_id: i32,
+    pub started: String,
+    pub stopped: Option<String>,
+    pub duration: i32,
+    pub ignored: bool,
+}
+
+#[derive(Debug, Insertable, Default)]
+#[table_name = "worklog"]
+pub struct NewWorklog {
+    pub task_id: i32,
 }

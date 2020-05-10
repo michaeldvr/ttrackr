@@ -1,7 +1,8 @@
 // cli args parser
 use crate::config;
 use crate::db::ops;
-use crate::utils::{fmt_duration, unwrap_string, BoxError, TaskNotFound};
+use crate::db::utils::TaskNotFound;
+use crate::utils::{fmt_duration, open_naivedate, unwrap_string, BoxError};
 
 use chrono::NaiveDate;
 use comfy_table::Table;
@@ -183,6 +184,8 @@ pub fn parse_cli() -> Result<(), BoxError> {
         Sub::List(args) => list_tasks(&config, args),
         Sub::Edit(args) => update_task(&config, args),
         Sub::Delete(args) => delete_task(&config, args),
+        Sub::Start(args) => start_task(&config, args),
+        Sub::Stop(args) => stop_task(&config, args),
         _ => Ok(()),
     }
 }
@@ -202,12 +205,13 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
         "Created",
     ]);
     for (i, row) in data.iter().enumerate() {
+        let spent = ops::get_total_spent(&config, &row.taskname)?;
         table.add_row(vec![
             (i + 1).to_string(),
             // (row.id).to_string(),
             row.taskname.to_string(),
             unwrap_string(row.notes.as_ref(), "-"),
-            fmt_duration(0, false, "not started"), // TODO get from worklog data
+            fmt_duration(spent, false, "not started"), // TODO get from worklog data
             fmt_duration(row.allocated, true, "-"),
             unwrap_string(row.duedate.as_ref(), "-"),
             row.done.to_string(),
@@ -252,9 +256,14 @@ fn delete_task(config: &config::Config, args: &DeleteOpts) -> Result<(), BoxErro
     ops::delete_task(config, &args.name)
 }
 
-fn open_naivedate(data: Option<chrono::NaiveDate>) -> Option<String> {
-    match data {
-        Some(d) => Some(d.to_string()),
-        None => None,
+fn start_task(config: &config::Config, args: &StartOpts) -> Result<(), BoxError> {
+    for name in args.name.iter() {
+        ops::start_worklog(config, name)?;
     }
+    Ok(())
+}
+
+fn stop_task(config: &config::Config, args: &StopOpts) -> Result<(), BoxError> {
+    ops::stop_worklogs(&config, &args.name)?;
+    Ok(())
 }

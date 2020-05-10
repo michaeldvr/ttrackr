@@ -1,6 +1,7 @@
 pub mod models;
 pub mod ops;
 pub mod schema;
+pub mod utils;
 
 use crate::config::Config;
 use crate::utils::BoxError;
