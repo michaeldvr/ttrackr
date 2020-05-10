@@ -84,6 +84,23 @@ pub fn update_tasks(
     }
 }
 
+pub fn delete_task(config: &Config, name: &str) -> Result<(), BoxError> {
+    use schema::task::dsl::*;
+    let conn = get_connection(config)?;
+    diesel::delete(task.filter(taskname.eq(name))).execute(&conn)?;
+    Ok(())
+}
+
+pub fn check_task_exists(config: &Config, name: &str) -> Result<bool, BoxError> {
+    use diesel::dsl::{exists, select};
+    use schema::task::dsl::*;
+    let conn = get_connection(config)?;
+    match select(exists(task.filter(taskname.eq(name)))).get_result(&conn) {
+        Ok(val) => Ok(val),
+        Err(err) => Err(err.into()),
+    }
+}
+
 fn get_task_id(config: &Config, name: &str) -> Result<i32, BoxError> {
     use schema::task::dsl::*;
     let conn = get_connection(config)?;

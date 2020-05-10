@@ -3,6 +3,26 @@ use inflector::Inflector;
 
 pub type BoxError = Box<dyn std::error::Error + std::marker::Send + std::marker::Sync>;
 
+#[derive(Debug, Clone)]
+pub struct TaskNotFound;
+
+impl std::fmt::Display for TaskNotFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Task not found")
+    }
+}
+
+impl std::error::Error for TaskNotFound {
+    fn description(&self) -> &str {
+        "Task not found"
+    }
+
+    fn cause(&self) -> Option<&(dyn std::error::Error)> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
 pub fn fmt_duration(duration: i32, short: bool, zero_text: &str) -> String {
     if duration == 0 {
         return String::from(zero_text);

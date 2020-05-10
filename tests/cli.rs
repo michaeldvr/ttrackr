@@ -35,22 +35,11 @@ fn create_new_config_file() -> Result<(), utils::BoxError> {
 fn create_task() -> Result<(), utils::BoxError> {
     let (_tempdir, configpath, dbpath) = utils::setup()?;
 
-    let mut cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("create")
-        .arg("test-task")
-        .assert()
-        .success();
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("create").arg("test-task").assert().success();
 
-    cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("list")
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
         .assert()
         .success()
         .stdout(predicate::str::contains("test-task"));
@@ -66,23 +55,12 @@ fn edit_task() -> Result<(), utils::BoxError> {
     helper::create_task(&configpath, &dbpath, "test-task", "12", "abcdef")?;
 
     // edit non existing tasks
-    let mut cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("edit")
-        .arg("test-task2")
-        .assert()
-        .failure(); // not found
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("edit").arg("test-task2").assert().failure(); // not found
 
     // edit task
-    cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("edit")
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("edit")
         .arg("test-task")
         .arg("-n")
         .arg("zxcv")
@@ -93,12 +71,8 @@ fn edit_task() -> Result<(), utils::BoxError> {
         .success();
 
     // check changes
-    cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("list")
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
         .assert()
         .success()
         .stdout(predicate::str::contains("zxcv"))
@@ -118,12 +92,8 @@ fn list_tasks() -> Result<(), utils::BoxError> {
     helper::create_task(&configpath, &dbpath, "task2::subtask", "3", "")?;
     helper::create_task(&configpath, &dbpath, "task2::subtask::todo", "4", "")?;
 
-    let mut cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("list")
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
         .assert()
         .success()
         .stdout(predicate::str::contains("task1"))
@@ -131,12 +101,8 @@ fn list_tasks() -> Result<(), utils::BoxError> {
         .stdout(predicate::str::contains("subtask"))
         .stdout(predicate::str::contains("todo"));
 
-    cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("list")
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
         .arg("-f")
         .arg("task1")
         .assert()
@@ -144,12 +110,8 @@ fn list_tasks() -> Result<(), utils::BoxError> {
         .stdout(predicate::str::contains("task1"))
         .stdout(predicate::str::contains("task2").not());
 
-    cmd = Command::cargo_bin("ttrackr")?;
-    cmd.arg("--config")
-        .arg(&configpath)
-        .arg("--dbfile")
-        .arg(&dbpath)
-        .arg("list")
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
         .arg("-f")
         .arg("task2::subtask")
         .assert()
@@ -160,8 +122,52 @@ fn list_tasks() -> Result<(), utils::BoxError> {
     Ok(())
 }
 
+#[test]
+fn delete_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task2", "1", "")?;
+
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("delete")
+        .arg("task1")
+        .arg("--noconfirm")
+        .assert()
+        .success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task2"))
+        .stdout(predicate::str::contains("task1").not());
+
+    Ok(())
+}
+
+#[test]
+fn delete_invalid_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("delete")
+        .arg("task1")
+        .arg("--noconfirm")
+        .assert()
+        .failure();
+    Ok(())
+}
+
 mod helper {
     use super::*;
+
+    pub fn prepare_cmd(
+        config: &PathBuf,
+        db: &PathBuf,
+    ) -> Result<std::process::Command, utils::BoxError> {
+        let mut cmd = Command::cargo_bin("ttrackr")?;
+        cmd.arg("--config").arg(&config).arg("--dbfile").arg(&db);
+        Ok(cmd)
+    }
 
     pub fn create_task(
         config: &PathBuf,
@@ -170,7 +176,7 @@ mod helper {
         alloc: &str,
         note: &str,
     ) -> Result<(), utils::BoxError> {
-        let mut cmd = Command::cargo_bin("ttrackr")?;        
+        let mut cmd = Command::cargo_bin("ttrackr")?;
 
         // create new task
         cmd.arg("--config")

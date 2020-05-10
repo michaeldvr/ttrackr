@@ -1,13 +1,15 @@
 // cli args parser
 use crate::config;
-use crate::utils::BoxError;
+use crate::db::ops;
+use crate::utils::{fmt_duration, unwrap_string, BoxError, TaskNotFound};
+
 use chrono::NaiveDate;
+use comfy_table::Table;
+use dialoguer::Confirm;
 use log::debug;
 use std::path::PathBuf;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
-
-use crate::db::ops;
 
 #[derive(StructOpt, Debug)]
 // #[structopt(setting = AppSettings::InferSubcommands)]
@@ -180,14 +182,12 @@ pub fn parse_cli() -> Result<(), BoxError> {
         }
         Sub::List(args) => list_tasks(&config, args),
         Sub::Edit(args) => update_task(&config, args),
+        Sub::Delete(args) => delete_task(&config, args),
         _ => Ok(()),
     }
 }
 
 fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> {
-    use crate::utils::{fmt_duration, unwrap_string};
-    use comfy_table::Table;
-
     let data = ops::list_tasks(&config, args.filter.as_deref(), Some(&args.status))?;
     // debug!("result: {:#?}", data);
     let mut table = Table::new();
@@ -234,6 +234,22 @@ fn update_task(config: &config::Config, args: &EditOpts) -> Result<(), BoxError>
         open_naivedate(args.duedate).as_deref(),
         done,
     )
+}
+
+fn delete_task(config: &config::Config, args: &DeleteOpts) -> Result<(), BoxError> {
+    if !args.noconfirm {
+        let mut prompt = "Delete task ".to_owned();
+        prompt.push_str(&args.name);
+        prompt.push_str(" ?");
+        if !Confirm::new().with_prompt(prompt).interact()? {
+            return Ok(());
+        }
+    }
+    let exists = ops::check_task_exists(config, &args.name)?;
+    if !exists {
+        return Err(TaskNotFound.into());
+    }
+    ops::delete_task(config, &args.name)
 }
 
 fn open_naivedate(data: Option<chrono::NaiveDate>) -> Option<String> {
