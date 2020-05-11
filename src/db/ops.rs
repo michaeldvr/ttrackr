@@ -157,31 +157,42 @@ pub fn stop_worklogs(config: &Config, names: &[String]) -> Result<(), BoxError> 
 pub fn get_total_spent(config: &Config, name: &str) -> Result<i32, BoxError> {
     let conn = get_connection(config)?;
     let taskobj = helper::get_task(&conn, name)?;
-    use schema::worklog::dsl::*;
-    let spents = models::Worklog::belonging_to(&taskobj)
-        .filter(stopped.is_not_null())
-        .filter(ignored.eq(false))
-        .select(duration)
-        .load::<i32>(&conn)?;
+    helper::get_spent_time(&conn, &taskobj)
+}
 
-    let current_spent = if helper::check_task_is_running(&conn, &taskobj)? {
-        let running = models::Worklog::belonging_to(&taskobj)
-            .filter(stopped.is_null())
-            .filter(ignored.eq(false))
-            .select(started)
-            .first::<String>(&conn)?;
-        let stop_timestamp = Utc::now().naive_local();
-        let start_timestamp = NaiveDateTime::parse_from_str(&running, "%Y-%m-%d %H:%M:%S")?;
-        i32::try_from(
-            stop_timestamp
-                .signed_duration_since(start_timestamp)
-                .num_seconds(),
-        )?
-    } else {
-        0
-    };
-    // manual addition
-    Ok(spents.iter().sum::<i32>() + current_spent)
+#[derive(Debug)]
+pub struct RunningTask {
+    pub name: String,
+    pub spent: i32,         // total spent
+    pub current_spent: i32, // current session
+    pub started: String,    // last started in UTC
+}
+
+pub fn get_running_tasks(
+    config: &Config,
+    taskfilter: Option<&str>,
+) -> Result<Vec<RunningTask>, BoxError> {
+    let conn = get_connection(config)?;
+
+    let mut ids: Vec<i32> = Vec::new();
+
+    if let Some(_filter) = taskfilter {
+        let tasks = list_tasks(config, taskfilter, None)?;
+        ids = tasks.into_iter().map(|t| t.id).collect();
+    }
+    let taskids = helper::get_running_task_ids(&conn, &ids)?;
+    let tasks = helper::get_tasks(&conn, &taskids)?;
+
+    let mut result: Vec<RunningTask> = Vec::new();
+    for task in tasks.iter() {
+        result.push(RunningTask {
+            name: task.taskname.to_owned(),
+            spent: helper::get_spent_time(&conn, task)?,
+            current_spent: helper::get_current_spent_time(&conn, task)?,
+            started: helper::get_started_time(&conn, task)?,
+        });
+    }
+    Ok(result)
 }
 
 mod helper {
@@ -201,6 +212,13 @@ mod helper {
         use schema::task::dsl::*;
         let found_task = task.filter(taskname.eq(name)).first::<models::Task>(conn)?;
         Ok(found_task)
+    }
+
+    /// Get batch task objects from given slice of their id.
+    pub fn get_tasks(conn: &SqliteConnection, ids: &[i32]) -> Result<Vec<models::Task>, BoxError> {
+        use schema::task::dsl::*;
+        let tasks = task.filter(id.eq_any(ids)).load::<models::Task>(conn)?;
+        Ok(tasks)
     }
 
     pub fn check_task_is_running(
@@ -265,10 +283,7 @@ mod helper {
     /// This function **doues not** check for duplicate running worklog entries.
     pub fn stop_worklog(conn: &SqliteConnection, taskobj: &models::Task) -> Result<(), BoxError> {
         use schema::worklog::dsl::*;
-        let worklog_obj: models::Worklog = models::Worklog::belonging_to(taskobj)
-            .filter(stopped.is_null())
-            .filter(ignored.eq(false))
-            .first::<models::Worklog>(conn)?;
+        let worklog_obj = self::get_running_worklog(conn, taskobj)?;
         let stop_timestamp = Utc::now().naive_local();
         let start_timestamp =
             NaiveDateTime::parse_from_str(&worklog_obj.started, "%Y-%m-%d %H:%M:%S")?;
@@ -289,6 +304,89 @@ mod helper {
     pub fn get_timestamp() -> String {
         let nowstamp = Utc::now().naive_local();
         nowstamp.format("%Y-%m-%d %H:%M:%S").to_string()
+    }
+
+    /// Get id of all running tasks.
+    ///
+    /// `filteredtasks` is a slice of task id for filtering result.
+    /// If it is empty then no filtering is done.
+    pub fn get_running_task_ids(
+        conn: &SqliteConnection,
+        filteredtasks: &[i32],
+    ) -> Result<Vec<i32>, BoxError> {
+        use schema::worklog::dsl::*;
+        let mut runnings = worklog.into_boxed();
+        runnings = runnings.filter(stopped.is_null()).filter(ignored.eq(false));
+        if !filteredtasks.is_empty() {
+            runnings = runnings.filter(task_id.eq_any(filteredtasks));
+        }
+        match runnings.select(task_id).load::<i32>(conn) {
+            Ok(val) => Ok(val),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Get `started` timestamp of given running `taskobj`.
+    ///
+    /// Task in argument must be a running task
+    pub fn get_started_time(
+        conn: &SqliteConnection,
+        taskobj: &models::Task,
+    ) -> Result<String, BoxError> {
+        let worklog_obj = get_running_worklog(conn, taskobj)?;
+        Ok(worklog_obj.started)
+    }
+
+    pub fn get_spent_time(
+        conn: &SqliteConnection,
+        taskobj: &models::Task,
+    ) -> Result<i32, BoxError> {
+        use schema::worklog::dsl::*;
+        let spents = models::Worklog::belonging_to(taskobj)
+            .filter(stopped.is_not_null())
+            .filter(ignored.eq(false))
+            .select(duration)
+            .load::<i32>(conn)?;
+
+        let current_spent = get_current_spent_time(conn, taskobj)?;
+        // manual addition
+        Ok(spents.iter().sum::<i32>() + current_spent)
+    }
+
+    pub fn get_current_spent_time(
+        conn: &SqliteConnection,
+        taskobj: &models::Task,
+    ) -> Result<i32, BoxError> {
+        use schema::worklog::dsl::*;
+        let current_spent = if helper::check_task_is_running(&conn, &taskobj)? {
+            let running = models::Worklog::belonging_to(taskobj)
+                .filter(stopped.is_null())
+                .filter(ignored.eq(false))
+                .select(started)
+                .first::<String>(conn)?;
+            let stop_timestamp = Utc::now().naive_local();
+            let start_timestamp = NaiveDateTime::parse_from_str(&running, "%Y-%m-%d %H:%M:%S")?;
+            i32::try_from(
+                stop_timestamp
+                    .signed_duration_since(start_timestamp)
+                    .num_seconds(),
+            )?
+        } else {
+            0
+        };
+        Ok(current_spent)
+    }
+
+    fn get_running_worklog(
+        conn: &SqliteConnection,
+        taskobj: &models::Task,
+    ) -> Result<models::Worklog, BoxError> {
+        use schema::worklog::dsl::*;
+        let started_data = models::Worklog::belonging_to(taskobj)
+            .filter(stopped.is_null())
+            .filter(ignored.eq(false))
+            .first::<models::Worklog>(conn)?;
+        Ok(started_data)
     }
 }
 
@@ -420,6 +518,36 @@ mod tests {
             .order(started.desc())
             .load::<models::Worklog>(&conn)?;
         assert_eq!(worklogs.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_running_tasks_ids() -> Result<(), BoxError> {
+        let (_tempdir, dbpath) = setup()?;
+        let conn_str = dbpath.to_string_lossy().to_string();
+        let conn = establish_connection(&conn_str)?;
+
+        self::create_task(&conn, "task1", None, None, None)?;
+        self::create_task(&conn, "task2", None, None, None)?;
+        self::create_task(&conn, "task1::abc", None, None, None)?;
+        self::create_task(&conn, "task3", None, None, None)?;
+
+        let task1 = helper::get_task(&conn, "task1")?;
+        let task2 = helper::get_task(&conn, "task2")?;
+        let subtask1 = helper::get_task(&conn, "task1::abc")?;
+
+        helper::create_worklog(&conn, task1.id)?;
+        helper::create_worklog(&conn, task2.id)?;
+
+        assert_eq!(
+            vec![task1.id, task2.id],
+            helper::get_running_task_ids(&conn, &vec![])?
+        );
+        assert_eq!(
+            vec![task1.id],
+            helper::get_running_task_ids(&conn, &vec![task1.id, subtask1.id])?
+        );
 
         Ok(())
     }

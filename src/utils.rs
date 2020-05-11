@@ -1,4 +1,5 @@
 // helper file
+use chrono::{offset::TimeZone, DateTime, Local, NaiveDateTime, Utc};
 use inflector::Inflector;
 
 pub type BoxError = Box<dyn std::error::Error + std::marker::Send + std::marker::Sync>;
@@ -72,6 +73,21 @@ pub fn open_naivedate(data: Option<chrono::NaiveDate>) -> Option<String> {
         Some(d) => Some(d.to_string()),
         None => None,
     }
+}
+
+pub fn utc_to_local_naive(utc: &str) -> Result<String, BoxError> {
+    let naive_dt = NaiveDateTime::parse_from_str(utc, "%Y-%m-%d %H:%M:%S")?;
+    let utc_dt: DateTime<Utc> = DateTime::from_utc(naive_dt, Utc);
+    let local_dt = utc_dt.with_timezone(&chrono::offset::Local);
+    Ok(local_dt.format("%Y-%m-%d %H:%M:%S").to_string())
+}
+
+#[allow(dead_code)]
+pub fn local_to_utc(local: &str) -> Result<String, BoxError> {
+    let localnaive = NaiveDateTime::parse_from_str(local, "%Y-%m-%d %H:%M:%S")?;
+    let localdt: DateTime<Local> = chrono::Local.from_local_datetime(&localnaive).unwrap();
+    let utcdt = localdt.naive_utc();
+    Ok(utcdt.format("%Y-%m-%d %H:%M:%S").to_string())
 }
 
 #[test]

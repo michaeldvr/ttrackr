@@ -2,7 +2,7 @@
 use crate::config;
 use crate::db::ops;
 use crate::db::utils::TaskNotFound;
-use crate::utils::{fmt_duration, open_naivedate, unwrap_string, BoxError};
+use crate::utils::{fmt_duration, open_naivedate, unwrap_string, utc_to_local_naive, BoxError};
 
 use chrono::NaiveDate;
 use comfy_table::Table;
@@ -173,6 +173,10 @@ pub fn parse_cli() -> Result<(), BoxError> {
                 Some(val) => Some(val * 60), // mins to secs
                 None => None,
             };
+            /*let mut duedate = open_naivedate(args.duedate);
+            if let Some(d) = duedate {
+                duedate = Some(local_to_utc(&d)?);
+            }*/
             ops::create_task(
                 &config,
                 &args.name,
@@ -186,6 +190,8 @@ pub fn parse_cli() -> Result<(), BoxError> {
         Sub::Delete(args) => delete_task(&config, args),
         Sub::Start(args) => start_task(&config, args),
         Sub::Stop(args) => stop_task(&config, args),
+        Sub::StopAll(args) => stop_all_tasks(&config, args),
+        Sub::Status(args) => tasks_status(&config, args),
         _ => Ok(()),
     }
 }
@@ -211,11 +217,11 @@ fn list_tasks(config: &config::Config, args: &ListOpts) -> Result<(), BoxError> 
             // (row.id).to_string(),
             row.taskname.to_string(),
             unwrap_string(row.notes.as_ref(), "-"),
-            fmt_duration(spent, false, "not started"), // TODO get from worklog data
+            fmt_duration(spent, false, "not started"),
             fmt_duration(row.allocated, true, "-"),
             unwrap_string(row.duedate.as_ref(), "-"),
             row.done.to_string(),
-            row.created.to_string(),
+            utc_to_local_naive(&row.created)?.to_string(),
         ]);
     }
     println!("{}", table);
@@ -264,6 +270,32 @@ fn start_task(config: &config::Config, args: &StartOpts) -> Result<(), BoxError>
 }
 
 fn stop_task(config: &config::Config, args: &StopOpts) -> Result<(), BoxError> {
-    ops::stop_worklogs(&config, &args.name)?;
+    ops::stop_worklogs(config, &args.name)
+}
+
+fn stop_all_tasks(config: &config::Config, _args: &StopAllOpts) -> Result<(), BoxError> {
+    let running_tasks = ops::get_running_tasks(config, None)?;
+    let tasknames: Vec<String> = running_tasks.iter().map(|t| t.name.to_owned()).collect();
+    ops::stop_worklogs(config, &tasknames)
+}
+
+fn tasks_status(config: &config::Config, args: &StatusOpts) -> Result<(), BoxError> {
+    let tasks = ops::get_running_tasks(config, args.filter.as_deref())?;
+    if tasks.is_empty() {
+        println!("No running task");
+        return Ok(());
+    }
+    let mut table = Table::new();
+    table.set_header(vec!["#", "Task", "Spent", "Last Started", "Total Spent"]);
+    for (i, row) in tasks.iter().enumerate() {
+        table.add_row(vec![
+            (i + 1).to_string(),
+            row.name.to_string(),
+            fmt_duration(row.current_spent, false, "-"),
+            utc_to_local_naive(&row.started)?.to_string(),
+            fmt_duration(row.spent, false, "-"),
+        ]);
+    }
+    println!("{}", table);
     Ok(())
 }

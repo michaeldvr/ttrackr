@@ -157,6 +157,112 @@ fn delete_invalid_task() -> Result<(), utils::BoxError> {
     Ok(())
 }
 
+#[test]
+fn start_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task2", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task3", "1", "")?;
+
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No running task"));
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start")
+        .arg("task1")
+        .arg("task3")
+        .assert()
+        .success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task1"))
+        .stdout(predicate::str::contains("task2").not());
+
+    Ok(())
+}
+
+#[test]
+fn stop_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task2", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task3", "1", "")?;
+
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start")
+        .arg("task1")
+        .arg("task3")
+        .assert()
+        .success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task1"))
+        .stdout(predicate::str::contains("task2").not());
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("stop").arg("task1").arg("task3").assert().success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No running task"));
+
+    Ok(())
+}
+
+#[test]
+fn stop_not_running_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("stop").arg("task1").assert().failure();
+
+    Ok(())
+}
+
+#[test]
+fn stopall_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task2", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task3", "1", "")?;
+
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start")
+        .arg("task1")
+        .arg("task3")
+        .assert()
+        .success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task1"))
+        .stdout(predicate::str::contains("task2").not());
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("stopall").assert().success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No running task"));
+
+    Ok(())
+}
+
 mod helper {
     use super::*;
 
