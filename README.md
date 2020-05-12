@@ -3,8 +3,6 @@
 
 ![CI](https://github.com/michaeldvr/ttrackr/workflows/CI/badge.svg)
 
-Task Time Tracker
-
 A terminal app for tracking spent time working on tasks.
 
 1. [About](#about)
