@@ -3,14 +3,14 @@
 
 ![CI](https://github.com/michaeldvr/ttrackr/workflows/CI/badge.svg)
 
-A terminal app for tracking spent time working on tasks.
+A terminal app for tracking time spent on working on tasks.
 
 1. [About](#about)
 2. [Installation](#installation)
 
 ## About
 
-`ttrackr` is used to track spent time on any tasks that you are
+`ttrackr` is used to track time spent on any tasks that you are
 doing. You provide a list of tasks that will be tracked, then mark it
 as _started_ when you begin working on it, and mark it _stopped_
 after you stop or finish working.
