@@ -263,6 +263,40 @@ fn stopall_task() -> Result<(), utils::BoxError> {
     Ok(())
 }
 
+#[test]
+fn delete_running_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task1"));
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start").arg("task1").assert().success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("delete")
+        .arg("task1")
+        .arg("--noconfirm")
+        .assert()
+        .success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No running task"));
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task1").not());
+    Ok(())
+}
+
 mod helper {
     use super::*;
 

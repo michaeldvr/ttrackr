@@ -92,6 +92,11 @@ pub fn update_tasks(
 pub fn delete_task(config: &Config, name: &str) -> Result<(), BoxError> {
     use schema::task::dsl::*;
     let conn = get_connection(config)?;
+
+    // remove worklogs
+    let taskid = helper::get_task_id(&conn, name)?;
+    helper::delete_worklogs(&conn, taskid)?;
+
     diesel::delete(task.filter(taskname.eq(name))).execute(&conn)?;
     Ok(())
 }
@@ -377,6 +382,12 @@ mod helper {
         Ok(current_spent)
     }
 
+    pub fn delete_worklogs(conn: &SqliteConnection, taskid: i32) -> Result<(), BoxError> {
+        use schema::worklog::dsl::*;
+        diesel::delete(worklog.filter(task_id.eq(taskid))).execute(conn)?;
+        Ok(())
+    }
+
     fn get_running_worklog(
         conn: &SqliteConnection,
         taskobj: &models::Task,
@@ -548,6 +559,30 @@ mod tests {
             vec![task1.id],
             helper::get_running_task_ids(&conn, &vec![task1.id, subtask1.id])?
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn delete_worklogs() -> Result<(), BoxError> {
+        let (_tempdir, dbpath) = setup()?;
+        let conn_str = dbpath.to_string_lossy().to_string();
+        let conn = establish_connection(&conn_str)?;
+
+        self::create_task(&conn, "task1", None, None, None)?;
+        let task1 = helper::get_task(&conn, "task1")?;
+        helper::create_worklog(&conn, task1.id)?;
+
+        helper::delete_worklogs(&conn, task1.id)?;
+
+        use schema::worklog::dsl::*;
+        let worklogs = models::Worklog::belonging_to(&task1)
+            .filter(stopped.is_null())
+            .filter(ignored.eq(false))
+            .order(started.desc())
+            .load::<models::Worklog>(&conn)?;
+
+        assert_eq!(worklogs.is_empty(), true);
 
         Ok(())
     }
