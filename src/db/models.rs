@@ -12,6 +12,26 @@ pub struct Task {
     pub done: bool,
 }
 
+impl Task {
+    pub fn create_changeset(&self) -> UpdateTask {
+        let duedate = match &self.duedate {
+            Some(v) => Some(v.to_owned()),
+            None => None,
+        };
+        let notes = match &self.notes {
+            Some(v) => Some(v.to_owned()),
+            None => None,
+        };
+        UpdateTask {
+            id: self.id,
+            notes,
+            allocated: self.allocated,
+            duedate,
+            done: Some(self.done),
+        }
+    }
+}
+
 #[derive(Debug, AsChangeset, Identifiable)]
 #[table_name = "task"]
 pub struct UpdateTask {

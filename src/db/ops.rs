@@ -1,5 +1,5 @@
 use super::{get_connection, models, schema, BoxError, Config};
-use crate::db::utils;
+use crate::utils::get_timestamp;
 use ansi_term::Style;
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
@@ -27,7 +27,7 @@ pub fn create_task(
         .execute(&conn);
     match result {
         Ok(_val) => {
-            // println!("result: {}", val);
+            println!("{} created.", Style::new().bold().paint(taskname));
             Ok(())
         }
         Err(err) => Err(err.into()),
@@ -75,16 +75,29 @@ pub fn update_tasks(
     done: Option<bool>,
 ) -> Result<(), BoxError> {
     let conn = get_connection(config)?;
-    let taskid = helper::get_task_id(&conn, name)?;
+    let taskobj = helper::get_task(&conn, name)?;
     let updatetask = models::UpdateTask {
-        id: taskid,
+        id: taskobj.id,
         notes: notes.map(String::from),
         allocated: allocated.unwrap_or(0),
         duedate: duedate.map(String::from),
         done,
     };
+
+    if let Some(d) = done {
+        if d {
+            // stop task is running
+            if helper::check_task_is_running(&conn, &taskobj)? {
+                helper::stop_worklog(&conn, &taskobj)?;
+            }
+        }
+    }
+
     match diesel::update(&updatetask).set(&updatetask).execute(&conn) {
-        Ok(_val) => Ok(()),
+        Ok(_val) => {
+            println!("{} updated.", Style::new().bold().paint(name));
+            Ok(())
+        }
         Err(err) => Err(err.into()),
     }
 }
@@ -98,6 +111,7 @@ pub fn delete_task(config: &Config, name: &str) -> Result<(), BoxError> {
     helper::delete_worklogs(&conn, taskid)?;
 
     diesel::delete(task.filter(taskname.eq(name))).execute(&conn)?;
+    println!("{} deleted.", Style::new().bold().paint(name));
     Ok(())
 }
 
@@ -111,50 +125,67 @@ pub fn check_task_exists(config: &Config, name: &str) -> Result<bool, BoxError> 
     }
 }
 
-pub fn start_worklog(config: &Config, name: &str) -> Result<(), BoxError> {
+pub fn start_worklogs(config: &Config, names: &[String]) -> Result<(), BoxError> {
     let conn = get_connection(config)?;
-    let current_task = helper::get_task(&conn, name)?;
-    if helper::check_task_is_running(&conn, &current_task)? {
-        helper::ignore_invalid_worklogs(&conn, &current_task)?;
-        eprintln!(
-            "Attempting to start an already running task. Any subsequent tasks won't be started."
-        );
-        return Err(utils::TaskIsAlreadyRunning {
-            taskname: current_task.taskname,
+    for name in names.iter() {
+        let current_task = helper::get_task(&conn, name)?;
+        if current_task.done {
+            eprintln!(
+                "Cannot start completed task: {}",
+                Style::new().bold().paint(current_task.taskname)
+            );
+            continue;
         }
-        .into());
+        if helper::check_task_is_running(&conn, &current_task)? {
+            helper::ignore_invalid_worklogs(&conn, &current_task)?;
+            eprintln!(
+                "{} is already running.",
+                Style::new().bold().paint(current_task.taskname),
+            );
+            continue;
+        }
+        helper::create_worklog(&conn, current_task.id)?;
+        println!(
+            "{} started at {}.",
+            Style::new().bold().paint(current_task.taskname),
+            get_timestamp()
+        );
     }
-    let res = helper::create_worklog(&conn, current_task.id);
-    println!(
-        "{} started at {}.",
-        Style::new().bold().paint(current_task.taskname),
-        helper::get_timestamp()
-    );
-    res
+    Ok(())
 }
 
 /// Stop multiple tasks
 pub fn stop_worklogs(config: &Config, names: &[String]) -> Result<(), BoxError> {
+    if names.is_empty() {
+        println!("No running task");
+        return Ok(());
+    }
     let conn = get_connection(config)?;
     for name in names.iter() {
         let current_task = helper::get_task(&conn, &name)?;
         if !helper::check_task_is_running(&conn, &current_task)? {
             // no running worklog
             eprintln!(
-                "Attempting to stop a non-running task. Any subsequent tasks won't be stopped."
+                "{} is not running",
+                Style::new().bold().paint(&current_task.taskname),
             );
-            return Err(utils::TaskIsNotRunning {
-                taskname: current_task.taskname,
-            }
-            .into());
+            continue;
         }
         helper::ignore_invalid_worklogs(&conn, &current_task)?;
         helper::stop_worklog(&conn, &current_task)?;
-        println!(
-            "{} stopped at {}.",
-            Style::new().bold().paint(current_task.taskname),
-            helper::get_timestamp()
+        print!(
+            "{} stopped at {}",
+            Style::new().bold().paint(&current_task.taskname),
+            get_timestamp()
         );
+        if config.autodone
+            && current_task.allocated > 0
+            && helper::get_spent_time(&conn, &current_task)? >= current_task.allocated
+        {
+            helper::flag_complete(&conn, &current_task)?;
+            print!(" [{}]", Style::new().bold().paint("done"));
+        }
+        println!(".");
     }
     Ok(())
 }
@@ -306,9 +337,16 @@ mod helper {
         Ok(())
     }
 
-    pub fn get_timestamp() -> String {
-        let nowstamp = Utc::now().naive_local();
-        nowstamp.format("%Y-%m-%d %H:%M:%S").to_string()
+    pub fn flag_complete(conn: &SqliteConnection, taskobj: &models::Task) -> Result<(), BoxError> {
+        if taskobj.done {
+            return Ok(());
+        }
+        let mut updates = taskobj.create_changeset();
+        updates.done = Some(true);
+        match diesel::update(&updates).set(&updates).execute(conn) {
+            Ok(_val) => Ok(()),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// Get id of all running tasks.
@@ -583,6 +621,36 @@ mod tests {
             .load::<models::Worklog>(&conn)?;
 
         assert_eq!(worklogs.is_empty(), true);
+
+        Ok(())
+    }
+
+    #[test]
+    fn complete_task_on_stop() -> Result<(), BoxError> {
+        let (_tempdir, dbpath) = setup()?;
+        let conn_str = dbpath.to_string_lossy().to_string();
+        let conn = establish_connection(&conn_str)?;
+
+        let mut conf = Config::new();
+        conf.autodone = true;
+        conf.database.insert("path".to_owned(), conn_str);
+
+        self::create_task(&conn, "task1", None, None, None)?;
+        let mut task1 = helper::get_task(&conn, "task1")?;
+        let mut updateobj = task1.create_changeset();
+        updateobj.allocated = 1;
+        match diesel::update(&updateobj).set(&updateobj).execute(&conn) {
+            Ok(_) => (),
+            Err(err) => return Err(err.into()),
+        };
+
+        helper::create_worklog(&conn, task1.id)?;
+        pause(1100);
+        stop_worklogs(&conf, &vec!["task1".to_owned()])?;
+
+        task1 = helper::get_task(&conn, "task1")?;
+
+        assert_eq!(task1.done, true);
 
         Ok(())
     }

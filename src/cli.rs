@@ -39,7 +39,7 @@ enum Sub {
     StopAll(StopAllOpts),
     #[structopt(name = "status", visible_alias = "stat")]
     Status(StatusOpts),
-    #[structopt(name = "list")]
+    #[structopt(name = "list", visible_alias = "ls")]
     List(ListOpts),
     #[structopt(name = "test", setting = AppSettings::Hidden)]
     Test(TestOpts),
@@ -86,13 +86,13 @@ struct DeleteOpts {
 
 #[derive(StructOpt, Debug)]
 struct StartOpts {
-    #[structopt(help = "Task name(s)")]
+    #[structopt(help = "Task name(s)", required = true)]
     name: Vec<String>,
 }
 
 #[derive(StructOpt, Debug)]
 struct StopOpts {
-    #[structopt(help = "Task name(s)")]
+    #[structopt(help = "Task name(s)", required = true)]
     name: Vec<String>,
 }
 
@@ -107,7 +107,7 @@ struct StatusOpts {
 
 #[derive(StructOpt, Debug)]
 struct ListOpts {
-    #[structopt(short = "s", long = "status", possible_values = &["all", "done", "incomplete"], default_value = "all")]
+    #[structopt(short = "s", long = "status", possible_values = &["all", "done", "incomplete"], default_value = "incomplete")]
     status: String,
     #[structopt(short = "f", long = "filter", name = "task name")]
     filter: Option<String>,
@@ -173,10 +173,6 @@ pub fn parse_cli() -> Result<(), BoxError> {
                 Some(val) => Some(val * 60), // mins to secs
                 None => None,
             };
-            /*let mut duedate = open_naivedate(args.duedate);
-            if let Some(d) = duedate {
-                duedate = Some(local_to_utc(&d)?);
-            }*/
             ops::create_task(
                 &config,
                 &args.name,
@@ -263,10 +259,7 @@ fn delete_task(config: &config::Config, args: &DeleteOpts) -> Result<(), BoxErro
 }
 
 fn start_task(config: &config::Config, args: &StartOpts) -> Result<(), BoxError> {
-    for name in args.name.iter() {
-        ops::start_worklog(config, name)?;
-    }
-    Ok(())
+    ops::start_worklogs(config, &args.name)
 }
 
 fn stop_task(config: &config::Config, args: &StopOpts) -> Result<(), BoxError> {

@@ -90,6 +90,11 @@ pub fn local_to_utc(local: &str) -> Result<String, BoxError> {
     Ok(utcdt.format("%Y-%m-%d %H:%M:%S").to_string())
 }
 
+pub fn get_timestamp() -> String {
+    let nowstamp = Utc::now().naive_local();
+    nowstamp.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
 #[test]
 fn formatted_seconds() {
     assert_eq!(fmt_duration(0, false, "zero"), "zero");

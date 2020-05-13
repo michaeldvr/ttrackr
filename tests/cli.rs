@@ -68,11 +68,14 @@ fn edit_task() -> Result<(), utils::BoxError> {
         .arg("30")
         .arg("-f")
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("updated."));
 
     // check changes
     cmd = helper::prepare_cmd(&configpath, &dbpath)?;
     cmd.arg("list")
+        .arg("-s")
+        .arg("all")
         .assert()
         .success()
         .stdout(predicate::str::contains("zxcv"))
@@ -133,7 +136,8 @@ fn delete_task() -> Result<(), utils::BoxError> {
         .arg("task1")
         .arg("--noconfirm")
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("deleted."));
 
     cmd = helper::prepare_cmd(&configpath, &dbpath)?;
     cmd.arg("list")
@@ -225,7 +229,28 @@ fn stop_not_running_task() -> Result<(), utils::BoxError> {
     let (_tempdir, configpath, dbpath) = utils::setup()?;
     helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
     let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
-    cmd.arg("stop").arg("task1").assert().failure();
+    cmd.arg("stop")
+        .arg("task1")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("is not running"));
+
+    Ok(())
+}
+
+#[test]
+fn start_completed_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("edit").arg("task1").arg("-f").assert().success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start")
+        .arg("task1")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Cannot start completed task"));
 
     Ok(())
 }
@@ -294,6 +319,36 @@ fn delete_running_task() -> Result<(), utils::BoxError> {
         .assert()
         .success()
         .stdout(predicate::str::contains("task1").not());
+    Ok(())
+}
+
+#[test]
+fn complete_running_task() -> Result<(), utils::BoxError> {
+    let (_tempdir, configpath, dbpath) = utils::setup()?;
+    helper::create_task(&configpath, &dbpath, "task1", "1", "")?;
+    helper::create_task(&configpath, &dbpath, "task2", "1", "")?;
+
+    let mut cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start")
+        .arg("task1")
+        .arg("task2")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task1"));
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("start").arg("task1").assert().success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("edit").arg("task1").arg("-f").assert().success();
+
+    cmd = helper::prepare_cmd(&configpath, &dbpath)?;
+    cmd.arg("status")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("task2"))
+        .stdout(predicate::str::contains("task1").not());
+
     Ok(())
 }
 
